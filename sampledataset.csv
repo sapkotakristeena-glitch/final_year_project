@@ -1,0 +1,91 @@
+complaint,category
+Internet not working for 2 days,Technical
+Frequent call drops during calls,Technical
+Slow internet speed at night,Technical
+No network signal in my area,Technical
+Mobile data disconnects automatically,Technical
+Unable to send SMS,Technical
+4G network switching to 2G frequently,Technical
+WiFi calling not working,Technical
+Network outage since morning,Technical
+Internet speed very slow,Technical
+Call quality is poor,Technical
+Cannot connect to mobile data,Technical
+Network bars fluctuate constantly,Technical
+Hotspot not working properly,Technical
+SIM card not detected,Technical
+Unable to make calls,Technical
+Delayed SMS delivery,Technical
+Frequent network interruptions,Technical
+VoLTE not working,Technical
+App not connecting to server,Technical
+Balance deducted without reason,Financial
+Recharge done but not reflected,Financial
+Wrong billing amount charged,Financial
+Extra charges added to my bill,Financial
+Payment failed but money deducted,Financial
+Refund not received,Financial
+Double recharge deducted,Financial
+Incorrect data usage charges,Financial
+Subscription activated without consent,Financial
+Billing cycle incorrect,Financial
+Late fee wrongly charged,Financial
+Auto renewal without permission,Financial
+Plan changed without notice,Financial
+Incorrect tax applied,Financial
+Money deducted for failed transaction,Financial
+Hidden charges in bill,Financial
+Balance reduced automatically,Financial
+International charges applied wrongly,Financial
+Roaming charges incorrect,Financial
+Overcharged for data usage,Financial
+Customer care not responding,Service
+Support team is very slow,Service
+Staff was rude during call,Service
+Issue not resolved after many complaints,Service
+No response from service center,Service
+Delay in resolving complaint,Service
+Technician did not visit on time,Service
+Poor customer service experience,Service
+Complaint closed without resolution,Service
+Long waiting time on helpline,Service
+Service request ignored,Service
+Repeated complaints not handled,Service
+No follow-up from company,Service
+Unhelpful support staff,Service
+Service agent disconnected call,Service
+Customer support gave wrong info,Service
+No proper communication from company,Service
+Delayed service activation,Service
+Service not activated after payment,Service
+Installation team arrived late,Service
+Internet not working since recharge,Technical
+Signal disappears indoors,Technical
+Data pack not working,Technical
+Call drops in crowded areas,Technical
+Mobile network unstable,Technical
+Unable to browse internet,Technical
+Network issue during calls,Technical
+Slow browsing speed,Technical
+Video calls not working,Technical
+Streaming buffering issue,Technical
+Recharge successful but no balance,Financial
+Plan benefits not received,Financial
+Wrong deduction after recharge,Financial
+Bill shows extra usage,Financial
+Discount not applied on recharge,Financial
+Payment processed twice,Financial
+Balance expired early,Financial
+Unclear billing statement,Financial
+Charges for unused services,Financial
+Wallet balance deducted incorrectly,Financial
+Customer support not helpful,Service
+Complaint not registered properly,Service
+No update on complaint status,Service
+Support line always busy,Service
+Service delay without reason,Service
+Agent did not understand issue,Service
+Poor handling of complaint,Service
+No escalation provided,Service
+Support team gave false assurance,Service
+Issue marked resolved but still exists,Service
