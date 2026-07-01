@@ -445,45 +445,45 @@ def get_admin_stats():
 # NOTIFICATION ENDPOINTS
 # ════════════════════════════════════════════════
 
-@app.route("/api/notifications", methods=["GET"])
-@token_required
-def get_notifications():
-    try:
-        with get_db() as cursor:
-            cursor.execute(
-                "SELECT id, message, is_read, created_at FROM notifications WHERE user_id = %s ORDER BY created_at DESC",
-                (request.user_id,)
-            )
-            notifications = cursor.fetchall()
-    except Exception as e:
-        return jsonify({"error": f"Database error: {str(e)}"}), 500
+# @app.route("/api/notifications", methods=["GET"])
+# @token_required
+# def get_notifications():
+#     try:
+#         with get_db() as cursor:
+#             cursor.execute(
+#                 "SELECT id, message, is_read, created_at FROM notifications WHERE user_id = %s ORDER BY created_at DESC",
+#                 (request.user_id,)
+#             )
+#             notifications = cursor.fetchall()
+#     except Exception as e:
+#         return jsonify({"error": f"Database error: {str(e)}"}), 500
 
-    return jsonify({
-        "notifications": [
-            {
-                "id":        n["id"],
-                "message":   n["message"],
-                "read":      bool(n["is_read"]),
-                "createdAt": str(n["created_at"])[:10]
-            }
-            for n in notifications
-        ]
-    }), 200
+#     return jsonify({
+#         "notifications": [
+#             {
+#                 "id":        n["id"],
+#                 "message":   n["message"],
+#                 "read":      bool(n["is_read"]),
+#                 "createdAt": str(n["created_at"])[:10]
+#             }
+#             for n in notifications
+#         ]
+#     }), 200
 
 
-@app.route("/api/notifications/<int:notification_id>/read", methods=["PATCH"])
-@token_required
-def mark_notification_read(notification_id):
-    try:
-        with get_db() as cursor:
-            cursor.execute(
-                "UPDATE notifications SET is_read = TRUE WHERE id = %s AND user_id = %s",
-                (notification_id, request.user_id)
-            )
-    except Exception as e:
-        return jsonify({"error": f"Database error: {str(e)}"}), 500
+# @app.route("/api/notifications/<int:notification_id>/read", methods=["PATCH"])
+# @token_required
+# def mark_notification_read(notification_id):
+#     try:
+#         with get_db() as cursor:
+#             cursor.execute(
+#                 "UPDATE notifications SET is_read = TRUE WHERE id = %s AND user_id = %s",
+#                 (notification_id, request.user_id)
+#             )
+#     except Exception as e:
+#         return jsonify({"error": f"Database error: {str(e)}"}), 500
 
-    return jsonify({"message": "Notification marked as read"}), 200
+#     return jsonify({"message": "Notification marked as read"}), 200
 
 
 # ── Keep original classify endpoint ──────────

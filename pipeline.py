@@ -78,22 +78,20 @@ def TF_IDF_calculation(tf_dict,idf_dict):
     
 def classify(tf_idf_dict):
 
-    if "payment" in tf_idf_dict:
+    if "payment" in tf_idf_dict or "transaction" in tf_idf_dict or "balance" in tf_idf_dict:
         return "Payment Issue"
     elif "internet" in tf_idf_dict or "network" in tf_idf_dict or "wifi" in tf_idf_dict:
         return "Network Issue"
-    elif "service" in tf_idf_dict:
-        return "Delivery Issue"
     else:
-        return "General Issue"
+        return "Service Issue"
 
-def get_priority(tf_idf_dict):
-    if "fail" in tf_idf_dict or "not" in tf_idf_dict or "stop" in tf_idf_dict:
-        return "High"
-    elif "slow" in tf_idf_dict:
-        return "Medium"
-    else:
-        return "Low"
+# def get_priority(tf_idf_dict):
+#     if "fail" in tf_idf_dict or "not" in tf_idf_dict or "stop" in tf_idf_dict:
+#         return "High"
+#     elif "slow" in tf_idf_dict:
+#         return "Medium"
+#     else:
+#         return "Low"
 
 def preprocessing_part(rtext):
     tokens = clean_tokenize(rtext)
@@ -104,14 +102,14 @@ def preprocessing_part(rtext):
     idf_dict = IDF_calculation(corpus)
     tf_idf_dict = TF_IDF_calculation(tf_dict, idf_dict)
     category = classify(tf_idf_dict)
-    priority = get_priority(tf_idf_dict)
+    # priority = get_priority(tf_idf_dict)
     print("TF-IDF", tf_idf_dict)
     print("Category:", category)
-    print("Priority:",priority)
+    # print("Priority:",priority)
     return{
         "TF-IDF":tf_idf_dict,
         "Category": category,
-        "Priority": priority
+        # "Priority": priority
     } 
 rtext = input("enter complain:")
 result = preprocessing_part(rtext)
