@@ -7,6 +7,7 @@ import UserRegistrationForm from "./pages/UserRegistrationForm";
 import MyComplaints from "./pages/MyComplaints";
 import UserDashboard from "./pages/UserDashboard";
 import Login from "./pages/Login";
+import Admin_Reports from "./pages/Admin_Reports";
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("token");
@@ -33,6 +34,7 @@ function App() {
         <Route path="/admin"        element={<ProtectedRoute><Admin_Panel /></ProtectedRoute>} />
         <Route path="/admin/complaints" element={<ProtectedRoute><Admin_Complaints /></ProtectedRoute>} />
         <Route path="/user"         element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
+        <Route path="/admin/reports" element={<ProtectedRoute><Admin_Reports /></ProtectedRoute>} />
       </Routes>
     </Router>
   );

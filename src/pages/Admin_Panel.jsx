@@ -105,6 +105,7 @@ export default function AdminPanel() {
           {[
             { id: "dashboard",  label: "Dashboard",      Icon: SquaresFour },
             { id: "complaints", label: "All Complaints",  Icon: FileText    },
+            { id: "reports",    label: "Reports",         Icon: FileText    },
           ].map(({ id, label, Icon }) => {
             const active = activeNav === id;
             return (
@@ -113,6 +114,7 @@ export default function AdminPanel() {
                 onClick={() => {
                   setActiveNav(id);
                   if (id === "complaints") navigate("/admin/complaints");
+                  if (id === "reports")  navigate("/admin/reports")
                 }}
                 style={{
                   display: "flex", alignItems: "center", gap: "10px",
@@ -197,8 +199,8 @@ export default function AdminPanel() {
             ))}
           </div>
 
-          {/* Manage card — single full width */}
-          <div style={{ marginBottom: "28px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "28px" }}>
+            {/* Manage All Complaints */}
             <div style={{
               background: "#ffffff", padding: "24px",
               borderRadius: "18px", border: "1.5px solid #C5D9EE",
@@ -213,7 +215,7 @@ export default function AdminPanel() {
               <button
                 onClick={() => navigate("/admin/complaints")}
                 style={{
-                  width: "20%", padding: "11px", background: "#1D70B8",
+                  width: "100%", padding: "11px", background: "#1D70B8",
                   color: "#fff", border: "none", borderRadius: "10px",
                   fontWeight: "600", fontSize: "14px", cursor: "pointer",
                   boxShadow: "0 4px 12px rgba(29,112,184,0.3)",
@@ -222,6 +224,33 @@ export default function AdminPanel() {
                 onMouseLeave={(e) => e.currentTarget.style.background = "#1D70B8"}
               >
                 View All Complaints
+              </button>
+            </div>
+
+            {/* View Reports */}
+            <div style={{
+              background: "#ffffff", padding: "24px",
+              borderRadius: "18px", border: "1.5px solid #C5D9EE",
+              boxShadow: "4px 4px 18px rgba(0,0,0,0.07)",
+            }}>
+              <h3 style={{ margin: "0 0 6px", color: "#1a2b45", fontSize: "16px", fontWeight: "700" }}>
+                View Reports & Analytics
+              </h3>
+              <p style={{ fontSize: "13px", color: "#718096", margin: "0 0 16px" }}>
+                Analyze complaint trends and performance
+              </p>
+              <button
+                onClick={() => navigate("/admin/reports")}
+                style={{
+                  width: "100%", padding: "11px", background: "#1D70B8",
+                  color: "#fff", border: "none", borderRadius: "10px",
+                  fontWeight: "600", fontSize: "14px", cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(29,112,184,0.3)",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#155a94"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "#1D70B8"}
+              >
+                View Reports
               </button>
             </div>
           </div>

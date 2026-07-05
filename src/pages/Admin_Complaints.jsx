@@ -7,6 +7,7 @@ import {
   SignOut,
   MagnifyingGlass,
   CaretDown,
+  FileText,
 } from "@phosphor-icons/react";
 
 const STATUS_STYLES = {
@@ -132,6 +133,7 @@ export default function Admin_Complaints() {
           {[
             { id: "dashboard",   label: "Dashboard",        Icon: SquaresFour },
             { id: "complaints",  label: "All Complaints",    Icon: MagnifyingGlass },
+            { id: "reports",    label: "Reports",         Icon: FileText    },
           ].map(({ id, label, Icon }) => {
             const active = activeNav === id;
             return (
@@ -140,6 +142,7 @@ export default function Admin_Complaints() {
                 onClick={() => {
                   setActiveNav(id);
                   if (id === "dashboard") navigate("/admin");
+                  if (id === "reports")  navigate("/admin/reports")
                 }}
                 style={{
                   display: "flex", alignItems: "center", gap: "10px",
