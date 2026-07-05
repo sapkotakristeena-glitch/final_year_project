@@ -361,12 +361,12 @@ export default function Dashboard() {
                 ) : (
                   recentComplaints.map((c, i) => (
                     <tr
-                      key={"C" + c.id}
+                      key={c.id}
                       style={{ background: i % 2 === 0 ? "#ffffff" : "#F9FBFD", transition: "background 0.12s" }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "#EEF5FC"}
                       onMouseLeave={(e) => e.currentTarget.style.background = i % 2 === 0 ? "#ffffff" : "#F9FBFD"}
                     >
-                      <td style={{ padding: "14px 16px", fontSize: "14px", fontWeight: "700", color: "#1a2b45", borderBottom: "1px solid #F0F6FC" }}>{"C" + c.id}</td>
+                      <td style={{ padding: "14px 16px", fontSize: "14px", fontWeight: "700", color: "#1a2b45", borderBottom: "1px solid #F0F6FC" }}>{c.id}</td>
                       <td style={{ padding: "14px 16px", fontSize: "14px", color: "#2d3748", borderBottom: "1px solid #F0F6FC" }}>{c.title}</td>
                       <td style={{ padding: "14px 16px", fontSize: "14px", color: "#4A5568", borderBottom: "1px solid #F0F6FC" }}>{c.category}</td>
                       <td style={{ padding: "14px 16px", fontSize: "14px", color: "#4A5568", borderBottom: "1px solid #F0F6FC" }}>{c.date}</td>
