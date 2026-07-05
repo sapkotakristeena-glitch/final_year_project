@@ -242,13 +242,12 @@ export default function AdminPanel() {
               <button
                 onClick={() => navigate("/admin/reports")}
                 style={{
-                  width: "100%", padding: "11px", background: "#1D70B8",
-                  color: "#fff", border: "none", borderRadius: "10px",
-                  fontWeight: "600", fontSize: "14px", cursor: "pointer",
-                  boxShadow: "0 4px 12px rgba(29,112,184,0.3)",
+                  width: "100%", padding: "11px", background: "#fff",
+                  color: "#1D70B8", border: "1.5px solid #1D70B8",
+                  borderRadius: "10px", fontWeight: "600", fontSize: "14px", cursor: "pointer",
                 }}
-                onMouseEnter={(e) => e.currentTarget.style.background = "#155a94"}
-                onMouseLeave={(e) => e.currentTarget.style.background = "#1D70B8"}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#E8F1FB"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "#fff"}
               >
                 View Reports
               </button>
