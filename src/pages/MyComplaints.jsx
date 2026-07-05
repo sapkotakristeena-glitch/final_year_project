@@ -350,7 +350,7 @@ export default function MyComplaints() {
                 ) : (
                   filtered.map((c, i) => (
                     <tr
-                      key={c.id}
+                      key={"C" + c.id}
                       style={{
                         background: i % 2 === 0 ? "#ffffff" : "#F9FBFD",
                         transition: "background 0.12s",
@@ -361,7 +361,7 @@ export default function MyComplaints() {
                       }
                     >
                         <td style={{ width: "10%", padding: "14px 12px", fontSize: "14px", textAlign: "center", fontWeight: "700", color: "#1a2b45", borderBottom: "1px solid #F0F6FC" }}>
-                          {c.id}
+                          {"C" + c.id}
                         </td>
                         <td style={{ width: "15%", padding: "14px 12px", fontSize: "14px", textAlign: "center", color: "#4A5568", borderBottom: "1px solid #F0F6FC" }}>
                           {c.date}
@@ -442,7 +442,7 @@ export default function MyComplaints() {
 
             {/* Fields */}
             {[
-              { label: "Complaint ID", value: selectedComplaint.id },
+              { label: "Complaint ID", value: "C" + selectedComplaint.id },
               { label: "Date Filed",   value: selectedComplaint.date },
               { label: "Title",        value: selectedComplaint.title },
               { label: "Category",     value: selectedComplaint.category },

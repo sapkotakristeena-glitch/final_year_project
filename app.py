@@ -19,8 +19,8 @@ JWT_SECRET = "solveit_secret_key_change_this"
 # ── Load trained ML model ─────────────────────
 with open("trained_model.pkl", "rb") as f:
     saved = pickle.load(f)
-model = saved["model"]
-vocab = saved["vocab"]
+model      = saved["model"]
+vectorizer = saved["vectorizer"]
 
 # ── Database connection ───────────────────────
 def get_db_connection():
@@ -255,9 +255,9 @@ def submit_complaint():
     if len(description) < 5:
         return jsonify({"error": "Description is too short"}), 400
 
-    tokens   = preprocess(description)
-    counts   = [tokens.count(w) for w in vocab]
-    category = model.predict([counts])[0]
+    clean_text      = " ".join(preprocess(description))
+    vectorized_text = vectorizer.transform([clean_text])
+    category        = model.predict(vectorized_text)[0]
 
     try:
         with get_db() as cursor:
@@ -265,13 +265,29 @@ def submit_complaint():
                 "INSERT INTO complaints (user_id, title, complaint_text, category) VALUES (%s, %s, %s, %s)",
                 (request.user_id, title, description, category)
             )
-            complaint_id = cursor.lastrowid
+            complaint_id   = cursor.lastrowid
+            complaint_code = f"C{complaint_id:04d}"
+            cursor.execute(
+                "UPDATE complaints SET complaint_code = %s WHERE id = %s",
+                (complaint_code, complaint_id)
+            )
+            # ── Insert initial status into history ──
+            cursor.execute(
+                "INSERT INTO status_history (complaint_id, old_status, new_status) VALUES (%s, %s, %s)",
+                (complaint_id, "None", "Pending")
+            )
     except Exception as e:
         return jsonify({"error": f"Database error: {str(e)}"}), 500
 
     return jsonify({
         "message": "Complaint submitted successfully",
-        "complaint": { "id": complaint_id, "title": title, "category": category, "status": "Pending" }
+        "complaint": {
+            "id":             complaint_id,
+            "complaint_code": complaint_code,
+            "title":          title,
+            "category":       category,
+            "status":         "Pending"
+        }
     }), 201
 
 
@@ -281,7 +297,8 @@ def get_user_complaints():
     try:
         with get_db() as cursor:
             cursor.execute(
-                "SELECT id, title, complaint_text, category, status, submitted_at FROM complaints WHERE user_id = %s ORDER BY submitted_at DESC",
+                """SELECT id, complaint_code, title, complaint_text, category, status, submitted_at
+                   FROM complaints WHERE user_id = %s ORDER BY submitted_at DESC""",
                 (request.user_id,)
             )
             complaints = cursor.fetchall()
@@ -291,12 +308,12 @@ def get_user_complaints():
     return jsonify({
         "complaints": [
             {
-                "id":       str(c["id"]),
-                "title":    c["title"],
-                "description": c["complaint_text"],
-                "category": c["category"],
-                "status":   c["status"],
-                "date":     str(c["submitted_at"])[:10].replace("-", "/")
+                "id":            c["complaint_code"] or str(c["id"]),
+                "title":         c["title"],
+                "description":   c["complaint_text"],
+                "category":      c["category"],
+                "status":        c["status"],
+                "date":          str(c["submitted_at"])[:10].replace("-", "/")
             }
             for c in complaints
         ]
@@ -308,10 +325,14 @@ def get_user_complaints():
 def get_complaint(complaint_id):
     try:
         with get_db() as cursor:
-            cursor.execute(
-                "SELECT * FROM complaints WHERE id = %s AND user_id = %s",
-                (complaint_id, request.user_id)
-            )
+            # Admin can view any complaint, user can only view their own
+            if request.user_role == "admin":
+                cursor.execute("SELECT * FROM complaints WHERE id = %s", (complaint_id,))
+            else:
+                cursor.execute(
+                    "SELECT * FROM complaints WHERE id = %s AND user_id = %s",
+                    (complaint_id, request.user_id)
+                )
             complaint = cursor.fetchone()
     except Exception as e:
         return jsonify({"error": f"Database error: {str(e)}"}), 500
@@ -320,12 +341,12 @@ def get_complaint(complaint_id):
         return jsonify({"error": "Complaint not found"}), 404
 
     return jsonify({
-        "id":          str(complaint["id"]),
-        "title":       complaint["title"],
-        "description": complaint["complaint_text"],
-        "category":    complaint["category"],
-        "status":      complaint["status"],
-        "date":        str(complaint["submitted_at"])[:10].replace("-", "/")
+        "id":             complaint["complaint_code"] or str(complaint["id"]),
+        "title":          complaint["title"],
+        "description":    complaint["complaint_text"],
+        "category":       complaint["category"],
+        "status":         complaint["status"],
+        "date":           str(complaint["submitted_at"])[:10].replace("-", "/")
     }), 200
 
 
@@ -335,7 +356,8 @@ def get_recent_complaints():
     try:
         with get_db() as cursor:
             cursor.execute(
-                """SELECT c.id, c.title, c.category, c.status, c.submitted_at, u.full_name as userName
+                """SELECT c.id, c.complaint_code, c.title, c.category, c.status,
+                          c.submitted_at, u.full_name as userName
                    FROM complaints c JOIN users u ON c.user_id = u.id
                    ORDER BY c.submitted_at DESC LIMIT 10"""
             )
@@ -346,7 +368,7 @@ def get_recent_complaints():
     return jsonify({
         "complaints": [
             {
-                "id":       str(c["id"]),
+                "id":       c["complaint_code"] or str(c["id"]),
                 "title":    c["title"],
                 "category": c["category"],
                 "status":   c["status"],
@@ -369,19 +391,36 @@ def update_status(complaint_id):
 
     try:
         with get_db() as cursor:
-            cursor.execute("SELECT user_id FROM complaints WHERE id = %s", (complaint_id,))
+            cursor.execute(
+                "SELECT user_id, status, complaint_code FROM complaints WHERE id = %s",
+                (complaint_id,)
+            )
             complaint = cursor.fetchone()
             if not complaint:
                 return jsonify({"error": "Complaint not found"}), 404
 
-            cursor.execute("UPDATE complaints SET status = %s WHERE id = %s", (new_status, complaint_id))
+            old_status     = complaint["status"]
+            complaint_code = complaint["complaint_code"] or str(complaint_id)
 
+            # ── Update status ──────────────────────────
+            cursor.execute(
+                "UPDATE complaints SET status = %s WHERE id = %s",
+                (new_status, complaint_id)
+            )
+
+            # ── Record status change in history ────────
+            cursor.execute(
+                "INSERT INTO status_history (complaint_id, old_status, new_status) VALUES (%s, %s, %s)",
+                (complaint_id, old_status, new_status)
+            )
+
+            # ── Send notification to user ──────────────
             if new_status == "In Review":
-                message = f"Your complaint #{complaint_id} is now being reviewed. We will work on resolving it shortly."
+                message = f"Your complaint {complaint_code} is now being reviewed. We will work on resolving it shortly."
             elif new_status == "Resolved":
-                message = f"Your complaint #{complaint_id} has been resolved. Thank you for your patience."
+                message = f"Your complaint {complaint_code} has been resolved. Thank you for your patience."
             else:
-                message = f"Your complaint #{complaint_id} status has been updated to {new_status}."
+                message = f"Your complaint {complaint_code} status has been updated to {new_status}."
 
             cursor.execute(
                 "INSERT INTO notifications (user_id, message) VALUES (%s, %s)",
@@ -390,7 +429,10 @@ def update_status(complaint_id):
     except Exception as e:
         return jsonify({"error": f"Database error: {str(e)}"}), 500
 
-    return jsonify({ "message": "Status updated successfully", "complaint": { "id": complaint_id, "status": new_status } }), 200
+    return jsonify({
+        "message": "Status updated successfully",
+        "complaint": { "id": complaint_code, "status": new_status }
+    }), 200
 
 
 @app.route("/api/admin/complaints", methods=["GET"])
@@ -399,7 +441,8 @@ def get_all_complaints():
     try:
         with get_db() as cursor:
             cursor.execute(
-                """SELECT c.id, c.title, c.category, c.status, c.submitted_at, u.full_name as userName
+                """SELECT c.id, c.complaint_code, c.title, c.category, c.status,
+                          c.submitted_at, u.full_name as userName
                    FROM complaints c JOIN users u ON c.user_id = u.id
                    ORDER BY c.submitted_at DESC"""
             )
@@ -410,7 +453,7 @@ def get_all_complaints():
     return jsonify({
         "complaints": [
             {
-                "id":       str(c["id"]),
+                "id":       c["complaint_code"] or str(c["id"]),
                 "title":    c["title"],
                 "category": c["category"],
                 "status":   c["status"],
@@ -442,51 +485,140 @@ def get_admin_stats():
 
 
 # ════════════════════════════════════════════════
+# REPORTS ENDPOINT
+# ════════════════════════════════════════════════
+
+@app.route("/api/admin/reports", methods=["GET"])
+@admin_required
+def get_reports():
+    try:
+        with get_db() as cursor:
+
+            # ── Complaints by status ───────────────────
+            cursor.execute(
+                """SELECT status, COUNT(*) as count
+                   FROM complaints GROUP BY status"""
+            )
+            by_status = cursor.fetchall()
+
+            # ── Complaints by category ─────────────────
+            cursor.execute(
+                """SELECT category, COUNT(*) as count
+                   FROM complaints GROUP BY category"""
+            )
+            by_category = cursor.fetchall()
+
+            # ── Complaints per day (last 30 days) ──────
+            cursor.execute(
+                """SELECT DATE(submitted_at) as date, COUNT(*) as count
+                   FROM complaints
+                   WHERE submitted_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                   GROUP BY DATE(submitted_at)
+                   ORDER BY date ASC"""
+            )
+            per_day = cursor.fetchall()
+
+            # ── Average resolution time (hours) ────────
+            cursor.execute(
+                """SELECT AVG(TIMESTAMPDIFF(HOUR, c.submitted_at, sh.changed_at)) as avg_hours
+                   FROM complaints c
+                   JOIN status_history sh ON c.id = sh.complaint_id
+                   WHERE sh.new_status = 'Resolved'"""
+            )
+            avg_resolution = cursor.fetchone()
+
+            # ── Status change timeline per complaint ───
+            cursor.execute(
+                """SELECT c.complaint_code, c.title, sh.old_status, sh.new_status,
+                          sh.changed_at,
+                          TIMESTAMPDIFF(HOUR, LAG(sh.changed_at) OVER
+                            (PARTITION BY sh.complaint_id ORDER BY sh.changed_at),
+                            sh.changed_at) as hours_in_prev_status
+                   FROM status_history sh
+                   JOIN complaints c ON c.id = sh.complaint_id
+                   ORDER BY sh.complaint_id, sh.changed_at DESC
+                   LIMIT 50"""
+            )
+            timeline = cursor.fetchall()
+
+            # ── Resolution rate ────────────────────────
+            cursor.execute("SELECT COUNT(*) as count FROM complaints")
+            total_count = cursor.fetchone()["count"]
+            cursor.execute("SELECT COUNT(*) as count FROM complaints WHERE status = 'Resolved'")
+            resolved_count = cursor.fetchone()["count"]
+            resolution_rate = round((resolved_count / total_count * 100), 1) if total_count > 0 else 0
+
+    except Exception as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+
+    return jsonify({
+        "byStatus":      [{"status": r["status"],   "count": r["count"]} for r in by_status],
+        "byCategory":    [{"category": r["category"], "count": r["count"]} for r in by_category],
+        "perDay":        [{"date": str(r["date"]), "count": r["count"]} for r in per_day],
+        "avgResolutionHours": avg_resolution["avg_hours"] or 0,
+        "resolutionRate": resolution_rate,
+        "timeline":      [
+            {
+                "complaintCode":   r["complaint_code"],
+                "title":           r["title"],
+                "oldStatus":       r["old_status"],
+                "newStatus":       r["new_status"],
+                "changedAt":       str(r["changed_at"])[:16],
+                "hoursInPrevStatus": r["hours_in_prev_status"]
+            }
+            for r in timeline
+        ]
+    }), 200
+
+
+# ════════════════════════════════════════════════
 # NOTIFICATION ENDPOINTS
 # ════════════════════════════════════════════════
 
-# @app.route("/api/notifications", methods=["GET"])
-# @token_required
-# def get_notifications():
-#     try:
-#         with get_db() as cursor:
-#             cursor.execute(
-#                 "SELECT id, message, is_read, created_at FROM notifications WHERE user_id = %s ORDER BY created_at DESC",
-#                 (request.user_id,)
-#             )
-#             notifications = cursor.fetchall()
-#     except Exception as e:
-#         return jsonify({"error": f"Database error: {str(e)}"}), 500
+@app.route("/api/notifications", methods=["GET"])
+@token_required
+def get_notifications():
+    try:
+        with get_db() as cursor:
+            cursor.execute(
+                """SELECT id, message, is_read, created_at
+                   FROM notifications WHERE user_id = %s
+                   ORDER BY created_at DESC""",
+                (request.user_id,)
+            )
+            notifications = cursor.fetchall()
+    except Exception as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
 
-#     return jsonify({
-#         "notifications": [
-#             {
-#                 "id":        n["id"],
-#                 "message":   n["message"],
-#                 "read":      bool(n["is_read"]),
-#                 "createdAt": str(n["created_at"])[:10]
-#             }
-#             for n in notifications
-#         ]
-#     }), 200
-
-
-# @app.route("/api/notifications/<int:notification_id>/read", methods=["PATCH"])
-# @token_required
-# def mark_notification_read(notification_id):
-#     try:
-#         with get_db() as cursor:
-#             cursor.execute(
-#                 "UPDATE notifications SET is_read = TRUE WHERE id = %s AND user_id = %s",
-#                 (notification_id, request.user_id)
-#             )
-#     except Exception as e:
-#         return jsonify({"error": f"Database error: {str(e)}"}), 500
-
-#     return jsonify({"message": "Notification marked as read"}), 200
+    return jsonify({
+        "notifications": [
+            {
+                "id":        n["id"],
+                "message":   n["message"],
+                "read":      bool(n["is_read"]),
+                "createdAt": str(n["created_at"])[:16]
+            }
+            for n in notifications
+        ]
+    }), 200
 
 
-# ── Keep original classify endpoint ──────────
+@app.route("/api/notifications/<int:notification_id>/read", methods=["PATCH"])
+@token_required
+def mark_notification_read(notification_id):
+    try:
+        with get_db() as cursor:
+            cursor.execute(
+                "UPDATE notifications SET is_read = TRUE WHERE id = %s AND user_id = %s",
+                (notification_id, request.user_id)
+            )
+    except Exception as e:
+        return jsonify({"error": f"Database error: {str(e)}"}), 500
+
+    return jsonify({"message": "Notification marked as read"}), 200
+
+
+# ── Original classify endpoint ────────────────
 @app.route("/classify", methods=["POST"])
 def classify():
     data = request.get_json()
@@ -497,9 +629,9 @@ def classify():
     if len(text) < 5:
         return jsonify({"error": "Complaint is too short"}), 400
 
-    tokens   = preprocess(text)
-    counts   = [tokens.count(w) for w in vocab]
-    category = model.predict([counts])[0]
+    clean_text      = " ".join(preprocess(text))
+    vectorized_text = vectorizer.transform([clean_text])
+    category        = model.predict(vectorized_text)[0]
 
     return jsonify({"category": category}), 200
 

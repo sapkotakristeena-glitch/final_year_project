@@ -303,13 +303,13 @@ export default function Admin_Complaints() {
                 ) : (
                   filtered.map((c, i) => (
                     <tr
-                      key={c.id}
+                      key={"C" + comp.id}
                       style={{ background: i % 2 === 0 ? "#ffffff" : "#F9FBFD", transition: "background 0.12s" }}
                       onMouseEnter={(e) => e.currentTarget.style.background = "#EEF5FC"}
                       onMouseLeave={(e) => e.currentTarget.style.background = i % 2 === 0 ? "#ffffff" : "#F9FBFD"}
                     >
                       <td style={{ padding: "14px 12px", fontSize: "14px", fontWeight: "700", textAlign: "center", color: "#1a2b45", borderBottom: "1px solid #F0F6FC" }}>
-                        {c.id}
+                        {"C" + comp.id}
                       </td>
                       <td style={{ padding: "14px 12px", fontSize: "14px", textAlign: "center", color: "#2d3748", borderBottom: "1px solid #F0F6FC" }}>
                         {c.title}

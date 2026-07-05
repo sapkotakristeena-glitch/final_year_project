@@ -1,4 +1,4 @@
-# src/tfidf.py
+
 import math
 
 class TFIDF:
@@ -6,17 +6,17 @@ class TFIDF:
         self.idf = {}
         self.vocab = []
 
-    def fit(self, corpus):           # corpus = list of token lists (training data only)
+    def fit(self, corpus):          
         N = len(corpus)
         all_words = set(w for doc in corpus for w in doc)
 
         for word in all_words:
             df = sum(1 for doc in corpus if word in doc)
-            self.idf[word] = math.log((N + 1) / (df + 1)) + 1  # fixed formula
+            self.idf[word] = math.log((N + 1) / (df + 1)) + 1  
 
         self.vocab = list(self.idf.keys())
 
-    def transform(self, doc):        # doc = single token list
+    def transform(self, doc):       
         total = len(doc) if doc else 1
         tf = {}
         for word in doc:

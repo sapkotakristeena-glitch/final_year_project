@@ -213,7 +213,7 @@ export default function AdminPanel() {
               <button
                 onClick={() => navigate("/admin/complaints")}
                 style={{
-                  width: "100%", padding: "11px", background: "#1D70B8",
+                  width: "20%", padding: "11px", background: "#1D70B8",
                   color: "#fff", border: "none", borderRadius: "10px",
                   fontWeight: "600", fontSize: "14px", cursor: "pointer",
                   boxShadow: "0 4px 12px rgba(29,112,184,0.3)",
