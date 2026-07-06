@@ -50,30 +50,39 @@ export default function Admin_Complaints() {
     }
   };
 
-  const updateStatus = async (complaintId, newStatus) => {
+const updateStatus = async (complaintId, newStatus) => {
     setUpdatingId(complaintId);
     setOpenDropdown(null);
     try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`http://localhost:5000/api/complaints/${complaintId}/status`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (response.ok) {
-        setComplaints(prev =>
-          prev.map(c => c.id === complaintId ? { ...c, status: newStatus } : c)
-        );
-      }
+        const token = localStorage.getItem("token");
+
+        // ✅ strip "C" prefix and convert to number
+        const numericId = parseInt(String(complaintId).replace("C", ""), 10);
+
+        const response = await fetch(`http://localhost:5000/api/complaints/${numericId}/status`, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${token}`,
+            },
+            body: JSON.stringify({ status: newStatus }),
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            setComplaints(prev =>
+                prev.map(c => c.id === complaintId ? { ...c, status: newStatus } : c)
+            );
+        } else {
+            alert(data.error || "Failed to update status");
+        }
     } catch (err) {
-      console.error("Failed to update status:", err);
+        console.error("Failed to update status:", err);
     } finally {
-      setUpdatingId(null);
+        setUpdatingId(null);
     }
-  };
+};
 
   const filtered = complaints.filter((c) => {
     const matchesSearch =

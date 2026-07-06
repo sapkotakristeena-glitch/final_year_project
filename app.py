@@ -11,7 +11,7 @@ from preprocessing import preprocess
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]}})
 
 # ── Secret key for JWT tokens ─────────────────
 JWT_SECRET = "solveit_secret_key_change_this"
@@ -57,13 +57,13 @@ def token_required(f):
             data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
             request.user_id   = data["user_id"]
             request.user_role = data["role"]
+            request.category_access = data["category_access"]
         except jwt.ExpiredSignatureError:
             return jsonify({"error": "Token has expired"}), 401
         except jwt.InvalidTokenError:
             return jsonify({"error": "Invalid token"}), 401
         return f(*args, **kwargs)
     return decorated
-
 def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -74,8 +74,9 @@ def admin_required(f):
             data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
             if data["role"] != "admin":
                 return jsonify({"error": "Admin access required"}), 403
-            request.user_id   = data["user_id"]
-            request.user_role = data["role"]
+            request.user_id          = data["user_id"]
+            request.user_role        = data["role"]
+            request.category_access  = data.get("category_access", "ALL")  # ← added this
         except jwt.ExpiredSignatureError:
             return jsonify({"error": "Token has expired"}), 401
         except jwt.InvalidTokenError:
@@ -84,10 +85,23 @@ def admin_required(f):
     return decorated
 
 
+
 # ════════════════════════════════════════════════
 # AUTH ENDPOINTS
 # ════════════════════════════════════════════════
+# ── Category filter helper ────────────────────
+def get_category_filter(role):
+    filters = {
+        "admin_financial": "Financial",
+        "admin_technical": "Technical",
+        "admin_service":   "Service",
+        "admin_other":     "Other",
+    }
+    return filters.get(role, None)
 
+# ════════════════════════════════════════════════
+# AUTH ENDPOINTS
+# ════════════════════════════════════════════════
 @app.route("/api/auth/register", methods=["POST"])
 def register():
     data      = request.get_json()
@@ -142,24 +156,40 @@ def login():
         return jsonify({"error": "Account not found"}), 404
     if not bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8")):
         return jsonify({"error": "Invalid email or password"}), 401
-
     token = jwt.encode({
+    "user_id": user["id"],
+    "role": user["role"],
+    "category_access": user["category_access"],
+    "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+    }, JWT_SECRET, algorithm="HS256")
+    
+    """token = jwt.encode({
         "user_id": user["id"],
         "role":    user["role"],
         "exp":     datetime.datetime.utcnow() + datetime.timedelta(hours=24)
-    }, JWT_SECRET, algorithm="HS256")
+    }, JWT_SECRET, algorithm="HS256")"""
 
     return jsonify({
         "token": token,
+        "user": {
+        "id": user["id"],
+        "fullName": user["full_name"],
+        "email": user["email"],
+        "phone": user["phone"],
+        "role": user["role"],
+        "categoryAccess": user["category_access"]
+        }}), 200
+
+"""
         "user": {
             "id":       user["id"],
             "fullName": user["full_name"],
             "email":    user["email"],
             "phone":    user["phone"],
             "role":     user["role"]
-        }
-    }), 200
-
+        } """
+    
+    
 
 @app.route("/api/auth/logout", methods=["POST"])
 @token_required
@@ -349,18 +379,28 @@ def get_complaint(complaint_id):
         "date":           str(complaint["submitted_at"])[:10].replace("-", "/")
     }), 200
 
-
+# ✅ fix — respects category_access
 @app.route("/api/complaints/recent", methods=["GET"])
 @admin_required
 def get_recent_complaints():
     try:
         with get_db() as cursor:
-            cursor.execute(
-                """SELECT c.id, c.complaint_code, c.title, c.category, c.status,
-                          c.submitted_at, u.full_name as userName
-                   FROM complaints c JOIN users u ON c.user_id = u.id
-                   ORDER BY c.submitted_at DESC LIMIT 10"""
-            )
+            if request.category_access == "ALL":
+                cursor.execute(
+                    """SELECT c.id, c.complaint_code, c.title, c.category, c.status,
+                              c.submitted_at, u.full_name as userName
+                       FROM complaints c JOIN users u ON c.user_id = u.id
+                       ORDER BY c.submitted_at DESC LIMIT 10"""
+                )
+            else:
+                cursor.execute(
+                    """SELECT c.id, c.complaint_code, c.title, c.category, c.status,
+                              c.submitted_at, u.full_name as userName
+                       FROM complaints c JOIN users u ON c.user_id = u.id
+                       WHERE c.category = %s
+                       ORDER BY c.submitted_at DESC LIMIT 10""",
+                    (request.category_access,)
+                )
             complaints = cursor.fetchall()
     except Exception as e:
         return jsonify({"error": f"Database error: {str(e)}"}), 500
@@ -392,31 +432,32 @@ def update_status(complaint_id):
     try:
         with get_db() as cursor:
             cursor.execute(
-                "SELECT user_id, status, complaint_code FROM complaints WHERE id = %s",
+                "SELECT user_id, status, complaint_code, category FROM complaints WHERE id = %s",
                 (complaint_id,)
             )
             complaint = cursor.fetchone()
             if not complaint:
                 return jsonify({"error": "Complaint not found"}), 404
 
+            # ── Category access check ──────────────────
+            if request.category_access != "ALL":
+                if complaint["category"] != request.category_access:
+                    return jsonify({"error": "Access denied for this complaint category"}), 403
+
             old_status     = complaint["status"]
             complaint_code = complaint["complaint_code"] or str(complaint_id)
 
-            # ── Update status ──────────────────────────
             cursor.execute(
                 "UPDATE complaints SET status = %s WHERE id = %s",
                 (new_status, complaint_id)
             )
-
-            # ── Record status change in history ────────
             cursor.execute(
                 "INSERT INTO status_history (complaint_id, old_status, new_status) VALUES (%s, %s, %s)",
                 (complaint_id, old_status, new_status)
             )
 
-            # ── Send notification to user ──────────────
             if new_status == "In Review":
-                message = f"Your complaint {complaint_code} is now being reviewed. We will work on resolving it shortly."
+                message = f"Your complaint {complaint_code} is now being reviewed."
             elif new_status == "Resolved":
                 message = f"Your complaint {complaint_code} has been resolved. Thank you for your patience."
             else:
@@ -440,12 +481,30 @@ def update_status(complaint_id):
 def get_all_complaints():
     try:
         with get_db() as cursor:
-            cursor.execute(
-                """SELECT c.id, c.complaint_code, c.title, c.category, c.status,
-                          c.submitted_at, u.full_name as userName
-                   FROM complaints c JOIN users u ON c.user_id = u.id
-                   ORDER BY c.submitted_at DESC"""
-            )
+            if request.category_access == "ALL":
+                cursor.execute(
+                    """SELECT c.id, c.complaint_code, c.title, c.category, c.status,
+                            c.submitted_at, u.full_name as userName
+                    FROM complaints c
+                    JOIN users u ON c.user_id = u.id
+                    ORDER BY c.submitted_at DESC"""
+                )
+            else:
+                cursor.execute(
+                    """SELECT c.id, c.complaint_code, c.title, c.category, c.status,
+                            c.submitted_at, u.full_name as userName
+                    FROM complaints c
+                    JOIN users u ON c.user_id = u.id
+                    WHERE c.category = %s
+                    ORDER BY c.submitted_at DESC""",
+                    (request.category_access,)
+                )
+                # cursor.execute(
+                #"""SELECT c.id, c.complaint_code, c.title, c.category, c.status,
+                 #         c.submitted_at, u.full_name as userName
+                  # FROM complaints c JOIN users u ON c.user_id = u.id
+                   #ORDER BY c.submitted_at DESC"""
+            #)
             complaints = cursor.fetchall()
     except Exception as e:
         return jsonify({"error": f"Database error: {str(e)}"}), 500
@@ -470,20 +529,42 @@ def get_all_complaints():
 def get_admin_stats():
     try:
         with get_db() as cursor:
-            cursor.execute("SELECT COUNT(*) as count FROM complaints")
-            total       = cursor.fetchone()["count"]
-            cursor.execute("SELECT COUNT(*) as count FROM complaints WHERE status = 'Pending'")
-            pending     = cursor.fetchone()["count"]
-            cursor.execute("SELECT COUNT(*) as count FROM complaints WHERE status = 'In Review'")
-            in_progress = cursor.fetchone()["count"]
-            cursor.execute("SELECT COUNT(*) as count FROM complaints WHERE status = 'Resolved'")
-            resolved    = cursor.fetchone()["count"]
+            if request.category_access == "ALL":
+                cursor.execute("SELECT COUNT(*) as count FROM complaints")
+                total = cursor.fetchone()["count"]
+
+                cursor.execute("SELECT COUNT(*) as count FROM complaints WHERE status = 'Pending'")
+                pending = cursor.fetchone()["count"]
+
+                cursor.execute("SELECT COUNT(*) as count FROM complaints WHERE status = 'In Review'")
+                in_progress = cursor.fetchone()["count"]
+
+                cursor.execute("SELECT COUNT(*) as count FROM complaints WHERE status = 'Resolved'")
+                resolved = cursor.fetchone()["count"]
+            else:
+                cat = request.category_access
+
+                cursor.execute("SELECT COUNT(*) as count FROM complaints WHERE category = %s", (cat,))
+                total = cursor.fetchone()["count"]
+
+                cursor.execute("SELECT COUNT(*) as count FROM complaints WHERE category = %s AND status = 'Pending'", (cat,))
+                pending = cursor.fetchone()["count"]
+
+                cursor.execute("SELECT COUNT(*) as count FROM complaints WHERE category = %s AND status = 'In Review'", (cat,))
+                in_progress = cursor.fetchone()["count"]
+
+                cursor.execute("SELECT COUNT(*) as count FROM complaints WHERE category = %s AND status = 'Resolved'", (cat,))
+                resolved = cursor.fetchone()["count"]
+
     except Exception as e:
         return jsonify({"error": f"Database error: {str(e)}"}), 500
 
-    return jsonify({ "total": total, "pending": pending, "inProgress": in_progress, "resolved": resolved }), 200
-
-
+    return jsonify({
+        "total":      total,
+        "pending":    pending,
+        "inProgress": in_progress,
+        "resolved":   resolved
+    }), 200
 # ════════════════════════════════════════════════
 # REPORTS ENDPOINT
 # ════════════════════════════════════════════════

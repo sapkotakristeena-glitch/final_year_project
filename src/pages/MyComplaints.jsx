@@ -442,7 +442,7 @@ export default function MyComplaints() {
 
             {/* Fields */}
             {[
-              { label: "Complaint ID", value: "C" + selectedComplaint.id },
+              { label: "Complaint ID", value: selectedComplaint.id },
               { label: "Date Filed",   value: selectedComplaint.date },
               { label: "Title",        value: selectedComplaint.title },
               { label: "Category",     value: selectedComplaint.category },
