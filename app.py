@@ -17,10 +17,26 @@ CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "PATCH",
 JWT_SECRET = "solveit_secret_key_change_this"
 
 # ── Load trained ML model ─────────────────────
-with open("trained_model.pkl", "rb") as f:
-    saved = pickle.load(f)
-model      = saved["model"]
-vectorizer = saved["vectorizer"]
+with open("trained_model.pkl", "rb") as file:
+    model_package = pickle.load(file)
+
+# Extract the individual pieces from the saved dictionary
+model = model_package["model"]
+model_name = model_package.get("model_name", "")
+vectorizer = model_package["vectorizer"]
+
+# ── Helper function for Custom ML Predictions ──
+def get_custom_prediction(vectorized_text):
+    """
+    Routes the prediction to the correct custom algorithm function 
+    depending on what was determined as the best model during training.
+    """
+    if "SVM" in model_name:
+        from custom_models.linear_svm import predict_multiclass_svm
+        return predict_multiclass_svm(model, vectorized_text)[0]
+    else:
+        from custom_models.naive_bayes import predict_multinomial_nb
+        return predict_multinomial_nb(model, vectorized_text)[0]
 
 # ── Database connection ───────────────────────
 def get_db_connection():
@@ -64,6 +80,7 @@ def token_required(f):
             return jsonify({"error": "Invalid token"}), 401
         return f(*args, **kwargs)
     return decorated
+
 def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -76,7 +93,7 @@ def admin_required(f):
                 return jsonify({"error": "Admin access required"}), 403
             request.user_id          = data["user_id"]
             request.user_role        = data["role"]
-            request.category_access  = data.get("category_access", "ALL")  # ← added this
+            request.category_access  = data.get("category_access", "ALL")
         except jwt.ExpiredSignatureError:
             return jsonify({"error": "Token has expired"}), 401
         except jwt.InvalidTokenError:
@@ -85,11 +102,9 @@ def admin_required(f):
     return decorated
 
 
-
 # ════════════════════════════════════════════════
 # AUTH ENDPOINTS
 # ════════════════════════════════════════════════
-# ── Category filter helper ────────────────────
 def get_category_filter(role):
     filters = {
         "admin_financial": "Financial",
@@ -99,16 +114,14 @@ def get_category_filter(role):
     }
     return filters.get(role, None)
 
-# ════════════════════════════════════════════════
-# AUTH ENDPOINTS
-# ════════════════════════════════════════════════
+
 @app.route("/api/auth/register", methods=["POST"])
 def register():
     data      = request.get_json()
     full_name = data.get("fullName", "").strip()
     email     = data.get("email", "").strip()
     phone     = data.get("phone", "").strip()
-    location = data.get("location", "").strip()
+    location  = data.get("location", "").strip()
     password  = data.get("password", "").strip()
 
     if not all([full_name, email, phone, location, password]):
@@ -157,41 +170,27 @@ def login():
         return jsonify({"error": "Account not found"}), 404
     if not bcrypt.checkpw(password.encode("utf-8"), user["password"].encode("utf-8")):
         return jsonify({"error": "Invalid email or password"}), 401
+        
     token = jwt.encode({
-    "user_id": user["id"],
-    "role": user["role"],
-    "category_access": user["category_access"],
-    "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
-    }, JWT_SECRET, algorithm="HS256")
-    
-    """token = jwt.encode({
         "user_id": user["id"],
-        "role":    user["role"],
-        "exp":     datetime.datetime.utcnow() + datetime.timedelta(hours=24)
-    }, JWT_SECRET, algorithm="HS256")"""
+        "role": user["role"],
+        "category_access": user["category_access"],
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+    }, JWT_SECRET, algorithm="HS256")
 
     return jsonify({
         "token": token,
         "user": {
-        "id": user["id"],
-        "fullName": user["full_name"],
-        "email": user["email"],
-        "phone": user["phone"],
-        "role": user["role"],
-        "location": user["location"],
-        "categoryAccess": user["category_access"]
-        }}), 200
-
-"""
-        "user": {
-            "id":       user["id"],
+            "id": user["id"],
             "fullName": user["full_name"],
-            "email":    user["email"],
-            "phone":    user["phone"],
-            "role":     user["role"]
-        } """
-    
-    
+            "email": user["email"],
+            "phone": user["phone"],
+            "role": user["role"],
+            "location": user["location"],
+            "categoryAccess": user["category_access"]
+        }
+    }), 200
+
 
 @app.route("/api/auth/logout", methods=["POST"])
 @token_required
@@ -288,9 +287,10 @@ def submit_complaint():
     if len(description) < 5:
         return jsonify({"error": "Description is too short"}), 400
 
+    # Process and classify via custom model functions
     clean_text      = " ".join(preprocess(description))
     vectorized_text = vectorizer.transform([clean_text])
-    category        = model.predict(vectorized_text)[0]
+    category        = get_custom_prediction(vectorized_text)
 
     try:
         with get_db() as cursor:
@@ -304,7 +304,6 @@ def submit_complaint():
                 "UPDATE complaints SET complaint_code = %s WHERE id = %s",
                 (complaint_code, complaint_id)
             )
-            # ── Insert initial status into history ──
             cursor.execute(
                 "INSERT INTO status_history (complaint_id, old_status, new_status) VALUES (%s, %s, %s)",
                 (complaint_id, "None", "Pending")
@@ -349,7 +348,7 @@ def get_user_complaints():
                 "description":   c["complaint_text"],
                 "category":      c["category"],
                 "status":        c["status"],
-                "location": c["location"],
+                "location":      c["location"],
                 "date":          str(c["submitted_at"])[:10].replace("-", "/")
             }
             for c in complaints
@@ -362,7 +361,6 @@ def get_user_complaints():
 def get_complaint(complaint_id):
     try:
         with get_db() as cursor:
-            # Admin can view any complaint, user can only view their own
             if request.user_role == "admin":
                 cursor.execute("SELECT * FROM complaints WHERE id = %s", (complaint_id,))
             else:
@@ -386,7 +384,7 @@ def get_complaint(complaint_id):
         "date":           str(complaint["submitted_at"])[:10].replace("-", "/")
     }), 200
 
-# ✅ fix — respects category_access
+
 @app.route("/api/complaints/recent", methods=["GET"])
 @admin_required
 def get_recent_complaints():
@@ -402,7 +400,7 @@ def get_recent_complaints():
             else:
                 cursor.execute(
                     """SELECT c.id, c.complaint_code, c.title, c.category, c.status,
-                              c.submitted_at, u.full_name as userName
+                              c.submitted_at, u.full_name as userName, u.location as userLocation
                        FROM complaints c JOIN users u ON c.user_id = u.id
                        WHERE c.category = %s
                        ORDER BY c.submitted_at DESC LIMIT 10""",
@@ -447,7 +445,6 @@ def update_status(complaint_id):
             if not complaint:
                 return jsonify({"error": "Complaint not found"}), 404
 
-            # ── Category access check ──────────────────
             if request.category_access != "ALL":
                 if complaint["category"] != request.category_access:
                     return jsonify({"error": "Access denied for this complaint category"}), 403
@@ -499,19 +496,13 @@ def get_all_complaints():
             else:
                 cursor.execute(
                     """SELECT c.id, c.complaint_code, c.title, c.category, c.status,
-                            c.submitted_at, u.full_name as userName
+                            c.submitted_at, u.full_name as userName, u.location as userLocation
                     FROM complaints c
                     JOIN users u ON c.user_id = u.id
                     WHERE c.category = %s
                     ORDER BY c.submitted_at DESC""",
                     (request.category_access,)
                 )
-                # cursor.execute(
-                #"""SELECT c.id, c.complaint_code, c.title, c.category, c.status,
-                 #         c.submitted_at, u.full_name as userName
-                  # FROM complaints c JOIN users u ON c.user_id = u.id
-                   #ORDER BY c.submitted_at DESC"""
-            #)
             complaints = cursor.fetchall()
     except Exception as e:
         return jsonify({"error": f"Database error: {str(e)}"}), 500
@@ -573,16 +564,16 @@ def get_admin_stats():
         "inProgress": in_progress,
         "resolved":   resolved
     }), 200
+
+
 # ════════════════════════════════════════════════
 # REPORTS ENDPOINT
 # ════════════════════════════════════════════════
-
 @app.route("/api/admin/reports", methods=["GET"])
 @admin_required
 def get_reports():
     try:
         with get_db() as cursor:
-            
             cursor.execute(
                 """SELECT u.location, COUNT(*) as count
                 FROM complaints c JOIN users u ON c.user_id = u.id
@@ -592,21 +583,18 @@ def get_reports():
             )
             by_location = cursor.fetchall()
 
-            # ── Complaints by status ───────────────────
             cursor.execute(
                 """SELECT status, COUNT(*) as count
                    FROM complaints GROUP BY status"""
             )
             by_status = cursor.fetchall()
 
-            # ── Complaints by category ─────────────────
             cursor.execute(
                 """SELECT category, COUNT(*) as count
                    FROM complaints GROUP BY category"""
             )
             by_category = cursor.fetchall()
 
-            # ── Complaints per day (last 30 days) ──────
             cursor.execute(
                 """SELECT DATE(submitted_at) as date, COUNT(*) as count
                    FROM complaints
@@ -616,16 +604,13 @@ def get_reports():
             )
             per_day = cursor.fetchall()
 
-            # ── Average resolution time (hours) ────────
-            cursor.execute(
-                """SELECT AVG(TIMESTAMPDIFF(HOUR, c.submitted_at, sh.changed_at)) as avg_hours
-                   FROM complaints c
-                   JOIN status_history sh ON c.id = sh.complaint_id
-                   WHERE sh.new_status = 'Resolved'"""
-            )
+            ajax_query = """SELECT AVG(TIMESTAMPDIFF(HOUR, c.submitted_at, sh.changed_at)) as avg_hours
+                            FROM complaints c
+                            JOIN status_history sh ON c.id = sh.complaint_id
+                            WHERE sh.new_status = 'Resolved'"""
+            cursor.execute(ajax_query)
             avg_resolution = cursor.fetchone()
 
-            # ── Status change timeline per complaint ───
             cursor.execute(
                 """SELECT c.complaint_code, c.title, sh.old_status, sh.new_status,
                           sh.changed_at,
@@ -639,7 +624,6 @@ def get_reports():
             )
             timeline = cursor.fetchall()
 
-            # ── Resolution rate ────────────────────────
             cursor.execute("SELECT COUNT(*) as count FROM complaints")
             total_count = cursor.fetchone()["count"]
             cursor.execute("SELECT COUNT(*) as count FROM complaints WHERE status = 'Resolved'")
@@ -673,7 +657,6 @@ def get_reports():
 # ════════════════════════════════════════════════
 # NOTIFICATION ENDPOINTS
 # ════════════════════════════════════════════════
-
 @app.route("/api/notifications", methods=["GET"])
 @token_required
 def get_notifications():
@@ -692,9 +675,9 @@ def get_notifications():
     return jsonify({
         "notifications": [
             {
-                "id":        n["id"],
-                "message":   n["message"],
-                "read":      bool(n["is_read"]),
+                "id": n["id"],
+                "message": n["message"],
+                "read": bool(n["is_read"]),
                 "createdAt": str(n["created_at"])[:16]
             }
             for n in notifications
@@ -728,9 +711,10 @@ def classify():
     if len(text) < 5:
         return jsonify({"error": "Complaint is too short"}), 400
 
+    # Process and classify via custom model functions
     clean_text      = " ".join(preprocess(text))
     vectorized_text = vectorizer.transform([clean_text])
-    category        = model.predict(vectorized_text)[0]
+    category        = get_custom_prediction(vectorized_text)
 
     return jsonify({"category": category}), 200
 

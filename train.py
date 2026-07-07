@@ -1,117 +1,332 @@
-# train.py
-import pandas as pd
+# ============================================================
+# IMPORTS
+# ============================================================
+
 import pickle
+import numpy as np
+import pandas as pd
+
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
-from sklearn.svm import LinearSVC
 from sklearn.metrics import accuracy_score, classification_report
+
 from preprocessing import preprocess
 
-# ── Load dataset ──────────────────────────────────────────────────
-print("Loading dataset...")
-data  = pd.read_csv("sampledataset.csv")
+from custom_models.naive_bayes import (
+    fit_multinomial_nb,
+    predict_multinomial_nb
+)
+
+from custom_models.linear_svm import (
+    fit_multiclass_svm,
+    predict_multiclass_svm
+)
+
+
+# ============================================================
+# LOAD DATASET
+# ============================================================
+
+print("=" * 60)
+print("LOADING DATASET")
+print("=" * 60)
+
+data = pd.read_csv("sampledataset.csv")
+
 X_raw = data["complaint"].astype(str)
-y     = data["category"]
+y = data["category"]
 
-print(f"Total samples : {len(data):,}")
-print(f"Categories    : {sorted(y.unique())}")
-print(f"Distribution  :\n{y.value_counts()}\n")
+print(f"Samples      : {len(data):,}")
+print(f"Categories   : {len(np.unique(y))}")
 
-# ── Preprocess text ───────────────────────────────────────────────
-print("Preprocessing text (this may take a while)...")
-X_clean = [" ".join(preprocess(text)) for text in X_raw]
+print("\nDistribution")
+print(y.value_counts())
 
-# ── Train/test split ──────────────────────────────────────────────
+
+# ============================================================
+# PREPROCESS
+# ============================================================
+
+print("\n" + "=" * 60)
+print("PREPROCESSING")
+print("=" * 60)
+
+X_clean = [
+
+    " ".join(preprocess(text))
+
+    for text in X_raw
+
+]
+
+
+# ============================================================
+# TRAIN TEST SPLIT
+# ============================================================
+
 X_train, X_test, y_train, y_test = train_test_split(
-    X_clean, y,
-    test_size=0.2,
+
+    X_clean,
+
+    y,
+
+    test_size=0.20,
+
     random_state=42,
+
     stratify=y
-)
-print(f"Train samples : {len(X_train):,}")
-print(f"Test samples  : {len(X_test):,}\n")
 
-# ── TF-IDF Vectorization ──────────────────────────────────────────
-print("Fitting TF-IDF vectorizer...")
+)
+
+print(f"\nTraining Samples : {len(X_train):,}")
+print(f"Testing Samples  : {len(X_test):,}")
+
+
+# ============================================================
+# TF-IDF
+# ============================================================
+
+print("\n" + "=" * 60)
+print("TF-IDF VECTORIZATION")
+print("=" * 60)
+
 vectorizer = TfidfVectorizer(
-    max_features=20000,
-    ngram_range=(1, 2),   # unigrams + bigrams
-    sublinear_tf=True,    # apply log normalization
-    min_df=2,             # ignore very rare words
+
+    max_features=5000,
+
+    ngram_range=(1, 2),
+
+    sublinear_tf=True,
+
+    min_df=2
+
 )
+
 X_train_tfidf = vectorizer.fit_transform(X_train)
-X_test_tfidf  = vectorizer.transform(X_test)
-print(f"Vocabulary size: {len(vectorizer.vocabulary_):,}\n")
 
-# ════════════════════════════════════════════════════════════════════
-# MODEL 1 — Multinomial Naive Bayes
-# ════════════════════════════════════════════════════════════════════
-print("=" * 50)
-print("Training Multinomial Naive Bayes...")
-nb_model   = MultinomialNB(alpha=0.1)
-nb_model.fit(X_train_tfidf, y_train)
-nb_preds   = nb_model.predict(X_test_tfidf)
-nb_accuracy = accuracy_score(y_test, nb_preds)
+X_test_tfidf = vectorizer.transform(X_test)
 
-print(f"Naive Bayes Accuracy : {nb_accuracy * 100:.2f}%")
-print("\nClassification Report:")
-print(classification_report(y_test, nb_preds))
+print(f"Vocabulary Size : {len(vectorizer.vocabulary_):,}")
 
-# ════════════════════════════════════════════════════════════════════
-# MODEL 2 — Support Vector Machine (LinearSVC)
-# ════════════════════════════════════════════════════════════════════
-print("=" * 50)
-print("Training Support Vector Machine...")
-svm_model    = LinearSVC(C=1.0, max_iter=2000, random_state=42)
-svm_model.fit(X_train_tfidf, y_train)
-svm_preds    = svm_model.predict(X_test_tfidf)
-svm_accuracy = accuracy_score(y_test, svm_preds)
 
-print(f"SVM Accuracy         : {svm_accuracy * 100:.2f}%")
-print("\nClassification Report:")
-print(classification_report(y_test, svm_preds))
+# ============================================================
+# LABEL NOISE
+# ============================================================
 
-# ════════════════════════════════════════════════════════════════════
-# MODEL COMPARISON & SELECTION
-# ════════════════════════════════════════════════════════════════════
-print("=" * 50)
-print("Model Comparison:")
-print(f"  Naive Bayes : {nb_accuracy  * 100:.2f}%")
-print(f"  SVM         : {svm_accuracy * 100:.2f}%")
+noise_rate = 0.05
+
+categories = np.unique(y)
+
+y_train = np.asarray(y_train, dtype=object).copy()
+
+num_noisy = int(len(y_train) * noise_rate)
+
+indices = np.random.choice(
+
+    len(y_train),
+
+    num_noisy,
+
+    replace=False
+
+)
+
+for idx in indices:
+
+    current = y_train[idx]
+
+    choices = categories[categories != current]
+
+    y_train[idx] = np.random.choice(choices)
+
+print(f"\nInjected {num_noisy} noisy labels.")
+
+
+# ============================================================
+# CUSTOM MULTINOMIAL NAIVE BAYES
+# ============================================================
+
+print("\n" + "=" * 60)
+print("TRAINING CUSTOM MULTINOMIAL NAIVE BAYES")
+print("=" * 60)
+
+nb_model = fit_multinomial_nb(
+
+    X_train_tfidf,
+
+    y_train,
+
+    alpha=0.1
+
+)
+
+nb_predictions = predict_multinomial_nb(
+
+    nb_model,
+
+    X_test_tfidf
+
+)
+
+nb_accuracy = accuracy_score(
+
+    y_test,
+
+    nb_predictions
+
+)
+
+print(f"\nNaive Bayes Accuracy : {nb_accuracy*100:.2f}%")
+
+print("\nClassification Report\n")
+
+print(
+
+    classification_report(
+
+        y_test,
+
+        nb_predictions
+
+    )
+
+)
+
+# ============================================================
+# CUSTOM LINEAR SVM
+# ============================================================
+
+print("\n" + "=" * 60)
+print("TRAINING CUSTOM LINEAR SVM")
+print("=" * 60)
+
+svm_model = fit_multiclass_svm(
+
+    X=X_train_tfidf,
+
+    y=y_train,
+
+    learning_rate=0.05,
+
+    lambda_param=0.01,
+
+    epochs=20,
+
+    batch_size=128
+
+)
+
+svm_predictions = predict_multiclass_svm(
+
+    svm_model,
+
+    X_test_tfidf
+
+)
+
+svm_accuracy = accuracy_score(
+
+    y_test,
+
+    svm_predictions
+
+)
+
+print(f"\nLinear SVM Accuracy : {svm_accuracy*100:.2f}%")
+
+print("\nClassification Report\n")
+
+print(
+
+    classification_report(
+
+        y_test,
+
+        svm_predictions
+
+    )
+
+)
+
+
+# ============================================================
+# MODEL COMPARISON
+# ============================================================
+
+print("\n" + "=" * 60)
+print("MODEL COMPARISON")
+print("=" * 60)
+
+print(f"Custom Multinomial Naive Bayes : {nb_accuracy*100:.2f}%")
+print(f"Custom Linear SVM             : {svm_accuracy*100:.2f}%")
 
 if svm_accuracy >= nb_accuracy:
-    best_model      = svm_model
-    best_model_name = "SVM"
-    best_accuracy   = svm_accuracy
+
+    best_model = svm_model
+
+    best_name = "Custom Linear SVM"
+
+    best_accuracy = svm_accuracy
+
 else:
-    best_model      = nb_model
-    best_model_name = "Naive Bayes"
-    best_accuracy   = nb_accuracy
 
-print(f"\n✓ Best model: {best_model_name} ({best_accuracy * 100:.2f}%)")
-print(f"  This model will be used for predictions in the app.\n")
+    best_model = nb_model
 
-# ════════════════════════════════════════════════════════════════════
-# SAVE MODELS
-# ════════════════════════════════════════════════════════════════════
-print("Saving models...")
-with open("trained_model.pkl", "wb") as f:
-    pickle.dump({
-        # Best model for production use
-        "model":      best_model,
-        "model_name": best_model_name,
-        "vectorizer": vectorizer,
+    best_name = "Custom Multinomial Naive Bayes"
 
-        # Both models saved for reference/comparison
-        "nb_model":   nb_model,
-        "svm_model":  svm_model,
+    best_accuracy = nb_accuracy
 
-        # Accuracy scores
-        "nb_accuracy":  nb_accuracy,
-        "svm_accuracy": svm_accuracy,
-    }, f)
 
-print(f"✓ Models saved to trained_model.pkl")
-print(f"✓ Active model: {best_model_name}")
-print("Training complete!")
+print("\nBest Model")
+print("-" * 60)
+
+print(best_name)
+
+print(f"Accuracy : {best_accuracy*100:.2f}%")
+
+
+
+# ============================================================
+# SAVE TRAINED MODELS
+# ============================================================
+
+print("\n" + "=" * 60)
+print("SAVING MODELS")
+print("=" * 60)
+
+model_package = {
+
+    # Production model
+    "model": best_model,
+
+    "model_name": best_name,
+
+    "vectorizer": vectorizer,
+
+    # Individual models
+    "naive_bayes": nb_model,
+
+    "linear_svm": svm_model,
+
+    # Performance
+    "naive_bayes_accuracy": nb_accuracy,
+
+    "linear_svm_accuracy": svm_accuracy
+
+}
+
+with open("trained_model.pkl", "wb") as file:
+
+    pickle.dump(
+
+        model_package,
+
+        file
+
+    )
+
+print("\ntrained_model.pkl saved successfully.")
+
+print("\nTraining Complete!")
+
+print("=" * 60)
