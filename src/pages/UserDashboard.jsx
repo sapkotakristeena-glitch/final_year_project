@@ -342,7 +342,7 @@ export default function Dashboard() {
                     { label: "Status",   width: "15%" },
                   ].map(({ label, width }) => (
                     <th key={label} style={{
-                      padding: "12px 16px", textAlign: "left", width,
+                      padding: "12px 16px", textAlign: "center", width,
                       fontSize: "13px", fontWeight: "700", color: "#4A5568",
                       borderBottom: "1px solid #E8F1FB", letterSpacing: "0.02em",
                     }}>

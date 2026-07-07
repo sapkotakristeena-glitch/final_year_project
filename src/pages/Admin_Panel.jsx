@@ -295,7 +295,7 @@ export default function AdminPanel() {
                 <tr style={{ background: "#F7FAFD" }}>
                   {["ID", "Complaint", "Category", "Date", "Status"].map((h) => (
                     <th key={h} style={{
-                      padding: "12px 20px", textAlign: "left",
+                      padding: "12px 20px", textAlign: "center",
                       fontSize: "13px", fontWeight: "700", color: "#4A5568",
                       borderBottom: "1px solid #E8F1FB", letterSpacing: "0.02em",
                     }}>
