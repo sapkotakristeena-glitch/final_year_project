@@ -88,7 +88,7 @@ const updateStatus = async (complaintId, newStatus) => {
     const matchesSearch =
       c.title.toLowerCase().includes(search.toLowerCase()) ||
       c.category.toLowerCase().includes(search.toLowerCase()) ||
-      c.id.toString().includes(search) ||
+      c.id.toString().toLowerCase().includes(search.toLowerCase()) ||
       (c.userName && c.userName.toLowerCase().includes(search.toLowerCase()));
     const matchesFilter = filterStatus === "All" || c.status === filterStatus;
     return matchesSearch && matchesFilter;
