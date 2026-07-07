@@ -447,6 +447,7 @@ export default function MyComplaints() {
               { label: "Title",        value: selectedComplaint.title },
               { label: "Category",     value: selectedComplaint.category },
               { label: "Description",  value: selectedComplaint.description },
+              { label: "Location", value: selectedComplaint.location || "—" },
             ].map(({ label, value }) => (
               <div key={label} style={{ marginBottom: "16px" }}>
                 <div style={{ fontSize: "12px", fontWeight: "600", color: "#718096", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.05em" }}>

@@ -7,9 +7,37 @@ export default function UserRegistrationForm() {
     fullName: "",
     contactNumber: "",
     emailAddress: "",
+    location: "",
     password: "",
     confirmPassword: "",
   });
+
+  const MUNICIPALITIES = [
+  // Kathmandu District
+  "Kathmandu Metropolitan City",
+  "Kirtipur Municipality",
+  "Chandragiri Municipality",
+  "Nagarjun Municipality",
+  "Tokha Municipality",
+  "Budhanilkantha Municipality",
+  "Tarakeshwor Municipality",
+  "Gokarneshwor Municipality",
+  "Kageshwori Manohara Municipality",
+  "Sankharapur Municipality",
+  "Dakshinkali Municipality",
+  // Lalitpur District
+  "Lalitpur Metropolitan City",
+  "Mahalaxmi Municipality",
+  "Godawari Municipality",
+  "Konjyosom Rural Municipality",
+  "Bagmati Rural Municipality",
+  "Mahankal Rural Municipality",
+  // Bhaktapur District
+  "Bhaktapur Municipality",
+  "Madhyapur Thimi Municipality",
+  "Suryabinayak Municipality",
+  "Changunarayan Municipality",
+];
 
   const [errors, setErrors]     = useState({});
   const [submitted, setSubmitted] = useState(false);
@@ -36,6 +64,9 @@ export default function UserRegistrationForm() {
       newErrors.contactNumber = "Contact number is required.";
     else if (!/^\+?[\d\s\-().]{7,15}$/.test(formData.contactNumber))
       newErrors.contactNumber = "Enter a valid contact number.";
+
+    if (!formData.location)
+      newErrors.location = "Please select your location.";
 
     if (!formData.emailAddress.trim())
       newErrors.emailAddress = "Email address is required.";
@@ -72,6 +103,7 @@ export default function UserRegistrationForm() {
           fullName: formData.fullName,
           email:    formData.emailAddress,
           phone:    formData.contactNumber,
+          location: formData.location,
           password: formData.password,
         }),
       });
@@ -89,7 +121,7 @@ export default function UserRegistrationForm() {
   };
 
   const handleReset = () => {
-    setFormData({ fullName: "", contactNumber: "", emailAddress: "", password: "", confirmPassword: "" });
+    setFormData({ fullName: "", contactNumber: "", emailAddress: "", location: "", password: "", confirmPassword: "" });
     setErrors({});
     setSubmitted(false);
   };
@@ -294,6 +326,34 @@ export default function UserRegistrationForm() {
               onBlur={() => setFocused(null)}
             />
             <ErrorMsg field="emailAddress" />
+          </div>
+
+          {/* Location */}
+          <div>
+            <label style={labelStyle}>Location</label>
+            <select
+              name="location"
+              value={formData.location}
+              onChange={handleChange}
+              style={{
+                ...inputStyle("location", !!errors.location),
+                height: "42px",
+                cursor: "pointer",
+                appearance: "none",
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%234A5568' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                backgroundRepeat: "no-repeat",
+                backgroundPosition: "right 12px center",
+                paddingRight: "36px",
+              }}
+              onFocus={() => setFocused("location")}
+              onBlur={() => setFocused(null)}
+            >
+              <option value="">Select your municipality</option>
+              {MUNICIPALITIES.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            <ErrorMsg field="location" />
           </div>
 
           {/* Password + Confirm Password */}

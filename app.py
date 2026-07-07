@@ -108,9 +108,10 @@ def register():
     full_name = data.get("fullName", "").strip()
     email     = data.get("email", "").strip()
     phone     = data.get("phone", "").strip()
+    location = data.get("location", "").strip()
     password  = data.get("password", "").strip()
 
-    if not all([full_name, email, phone, password]):
+    if not all([full_name, email, phone, location, password]):
         return jsonify({"error": "All fields are required"}), 400
     if len(password) < 6:
         return jsonify({"error": "Password must be at least 6 characters"}), 400
@@ -123,8 +124,8 @@ def register():
             if cursor.fetchone():
                 return jsonify({"error": "Email already registered"}), 409
             cursor.execute(
-                "INSERT INTO users (full_name, email, phone, password) VALUES (%s, %s, %s, %s)",
-                (full_name, email, phone, hashed)
+                "INSERT INTO users (full_name, email, phone, location, password) VALUES (%s, %s, %s, %s, %s)",
+                (full_name, email, phone, location, hashed)
             )
             user_id = cursor.lastrowid
     except Exception as e:
@@ -177,6 +178,7 @@ def login():
         "email": user["email"],
         "phone": user["phone"],
         "role": user["role"],
+        "location": user["location"],
         "categoryAccess": user["category_access"]
         }}), 200
 
@@ -233,7 +235,7 @@ def get_profile():
     try:
         with get_db() as cursor:
             cursor.execute(
-                "SELECT id, full_name, email, phone, created_at FROM users WHERE id = %s",
+                "SELECT id, full_name, email, phone, location, created_at FROM users WHERE id = %s",
                 (request.user_id,)
             )
             user = cursor.fetchone()
@@ -248,6 +250,7 @@ def get_profile():
         "fullName":  user["full_name"],
         "email":     user["email"],
         "phone":     user["phone"],
+        "location":  user["location"],
         "createdAt": str(user["created_at"])
     }), 200
 
@@ -327,8 +330,11 @@ def get_user_complaints():
     try:
         with get_db() as cursor:
             cursor.execute(
-                """SELECT id, complaint_code, title, complaint_text, category, status, submitted_at
-                   FROM complaints WHERE user_id = %s ORDER BY submitted_at DESC""",
+                """SELECT c.id, c.complaint_code, c.title, c.complaint_text, 
+                        c.category, c.status, c.submitted_at, u.location
+                FROM complaints c JOIN users u ON c.user_id = u.id
+                WHERE c.user_id = %s 
+                ORDER BY c.submitted_at DESC""",
                 (request.user_id,)
             )
             complaints = cursor.fetchall()
@@ -343,6 +349,7 @@ def get_user_complaints():
                 "description":   c["complaint_text"],
                 "category":      c["category"],
                 "status":        c["status"],
+                "location": c["location"],
                 "date":          str(c["submitted_at"])[:10].replace("-", "/")
             }
             for c in complaints
@@ -388,9 +395,9 @@ def get_recent_complaints():
             if request.category_access == "ALL":
                 cursor.execute(
                     """SELECT c.id, c.complaint_code, c.title, c.category, c.status,
-                              c.submitted_at, u.full_name as userName
-                       FROM complaints c JOIN users u ON c.user_id = u.id
-                       ORDER BY c.submitted_at DESC LIMIT 10"""
+                            c.submitted_at, u.full_name as userName, u.location as userLocation
+                    FROM complaints c JOIN users u ON c.user_id = u.id
+                    ORDER BY c.submitted_at DESC LIMIT 10"""
                 )
             else:
                 cursor.execute(
@@ -413,6 +420,7 @@ def get_recent_complaints():
                 "category": c["category"],
                 "status":   c["status"],
                 "date":     str(c["submitted_at"])[:10].replace("-", "/"),
+                "location": c["userLocation"],
                 "userName": c["userName"]
             }
             for c in complaints
@@ -484,9 +492,8 @@ def get_all_complaints():
             if request.category_access == "ALL":
                 cursor.execute(
                     """SELECT c.id, c.complaint_code, c.title, c.category, c.status,
-                            c.submitted_at, u.full_name as userName
-                    FROM complaints c
-                    JOIN users u ON c.user_id = u.id
+                            c.submitted_at, u.full_name as userName, u.location as userLocation
+                    FROM complaints c JOIN users u ON c.user_id = u.id
                     ORDER BY c.submitted_at DESC"""
                 )
             else:
@@ -517,6 +524,7 @@ def get_all_complaints():
                 "category": c["category"],
                 "status":   c["status"],
                 "date":     str(c["submitted_at"])[:10].replace("-", "/"),
+                "location": c["userLocation"],
                 "userName": c["userName"]
             }
             for c in complaints
@@ -574,6 +582,15 @@ def get_admin_stats():
 def get_reports():
     try:
         with get_db() as cursor:
+            
+            cursor.execute(
+                """SELECT u.location, COUNT(*) as count
+                FROM complaints c JOIN users u ON c.user_id = u.id
+                WHERE u.location IS NOT NULL
+                GROUP BY u.location
+                ORDER BY count DESC"""
+            )
+            by_location = cursor.fetchall()
 
             # ── Complaints by status ───────────────────
             cursor.execute(
@@ -638,6 +655,7 @@ def get_reports():
         "perDay":        [{"date": str(r["date"]), "count": r["count"]} for r in per_day],
         "avgResolutionHours": avg_resolution["avg_hours"] or 0,
         "resolutionRate": resolution_rate,
+        "byLocation": [{"location": r["location"], "count": r["count"]} for r in by_location],
         "timeline":      [
             {
                 "complaintCode":   r["complaint_code"],

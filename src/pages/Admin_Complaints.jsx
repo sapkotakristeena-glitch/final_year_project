@@ -281,13 +281,14 @@ const updateStatus = async (complaintId, newStatus) => {
               <thead>
                 <tr style={{ background: "#F7FAFD" }}>
                   {[
-                    { label: "ID",       width: "8%"  },
-                    { label: "Title",    width: "22%" },
-                    { label: "Category", width: "18%" },
-                    { label: "Date",     width: "13%" },
+                    { label: "ID",       width: "7%"  },
+                    { label: "Title",    width: "20%" },
+                    { label: "Category", width: "15%" },
+                    { label: "Date",     width: "12%" },
                     { label: "User",     width: "16%" },
-                    { label: "Status",   width: "15%" },
-                    { label: "Actions",  width: "8%"  },
+                    { label: "Location", width: "15%" },
+                    { label: "Status",   width: "10%" },
+                    { label: "Actions",  width: "5%"  },
                   ].map(({ label, width }) => (
                     <th key={label} style={{
                       padding: "12px 12px", textAlign: "center", width,
@@ -334,6 +335,9 @@ const updateStatus = async (complaintId, newStatus) => {
                       </td>
                       <td style={{ padding: "14px 12px", fontSize: "14px", textAlign: "center", color: "#4A5568", borderBottom: "1px solid #F0F6FC" }}>
                         {c.userName || "—"}
+                      </td>
+                      <td style={{ padding: "14px 12px", fontSize: "14px", textAlign: "center", color: "#4A5568", borderBottom: "1px solid #F0F6FC" }}>
+                        {c.location || "—"}
                       </td>
 
                       {/* Status dropdown */}

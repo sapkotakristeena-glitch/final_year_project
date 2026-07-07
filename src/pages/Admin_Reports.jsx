@@ -32,6 +32,7 @@ export default function Admin_Reports() {
     avgResolutionHours: 0,
     resolutionRate:     0,
     timeline:           [],
+    byLocation:         [],
   });
 
   useEffect(() => {
@@ -299,6 +300,37 @@ export default function Admin_Reports() {
                       name="Complaints"
                     />
                   </LineChart>
+                </ResponsiveContainer>
+              </div>
+              
+              {/* ── Row 4: Complaints per location ───── */}
+              <div style={{
+                background: "#fff", padding: "24px", borderRadius: "18px",
+                border: "1.5px solid #C5D9EE", boxShadow: "4px 4px 18px rgba(0,0,0,0.07)",
+                marginTop: "20px",
+              }}>
+                <h3 style={{ margin: "0 0 20px", fontSize: "16px", fontWeight: "700", color: "#1a2b45" }}>
+                  Complaints by Location
+                </h3>
+                <ResponsiveContainer width="100%" height={500}>
+                  <BarChart
+                    data={data.byLocation}
+                    layout="vertical"
+                    margin={{ top: 5, right: 30, left: 180, bottom: 5 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#E8F1FB" />
+                    <XAxis type="number" tick={{ fontSize: 12, fill: "#4A5568" }} />
+                    <YAxis
+                      type="category"
+                      dataKey="location"
+                      tick={{ fontSize: 11, fill: "#4A5568" }}
+                      width={175}
+                    />
+                    <Tooltip
+                      contentStyle={{ borderRadius: "10px", border: "1px solid #C5D9EE", fontSize: "13px" }}
+                    />
+                    <Bar dataKey="count" radius={[0, 6, 6, 0]} fill="#1D70B8" name="Complaints" />
+                  </BarChart>
                 </ResponsiveContainer>
               </div>
 

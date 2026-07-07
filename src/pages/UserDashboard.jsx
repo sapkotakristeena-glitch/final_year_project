@@ -194,7 +194,7 @@ export default function Dashboard() {
               Welcome back, {user.fullName || "Username"}! 
             </h1>
             <p style={{ fontSize: "14px", color: "#718096", margin: 0 }}>
-              Here's a summary of your complaints and activity
+              {user.location ? `${user.location} — Here's a summary of your complaints and activity` : "Here's a summary of your complaints and activity"}
             </p>
           </div>
 
